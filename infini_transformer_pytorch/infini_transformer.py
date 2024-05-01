@@ -139,7 +139,7 @@ class CausalAttention(Module):
             mem_norm = einsum(q, past_memories_norm, 'b h n d, b h d -> b h n')
 
             mem_norm = rearrange(mem_norm, '... -> ... 1')
-            mem_out = mem_out_unnormed / mem_norm.clamp(min = eps)
+            mem_out = mem_out_unnormed / mem_norm.clamp(min = eps) # eq (3)
 
             # now combine the present output of queries with the outputs querying the past compressed key/value memories
             # in paper, they use a sigmoid gating scheme with learned gate per head
@@ -147,7 +147,7 @@ class CausalAttention(Module):
             gates = rearrange(self.head_gates, 'h -> h 1 1')
             gates = gates.sigmoid()
 
-            out = out * gates + mem_out * (1. - gates)
+            out = out * gates + mem_out * (1. - gates)  # eq (6)
 
         # create the next memories
 
@@ -155,8 +155,8 @@ class CausalAttention(Module):
         new_memories_norm = reduce(k, 'b h n d -> b h d', 'sum')
 
         if exists(past_memories):
-            new_memories_kv = new_memories_kv + past_memories_kv
-            new_memories_norm = new_memories_norm + past_memories_norm
+            new_memories_kv = new_memories_kv + past_memories_kv          # eq (4)
+            new_memories_norm = new_memories_norm + past_memories_norm    # eq (4)
 
         new_memories = (new_memories_kv, new_memories_norm)
 
