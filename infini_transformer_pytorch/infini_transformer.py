@@ -103,14 +103,12 @@ class CausalAttention(Module):
 
         q = q * self.scale
 
-        # rotary
-
-        q = self.rotary_emb.rotate_queries_or_keys(q)
-        k = self.rotary_emb.rotate_queries_or_keys(k)
-
         # similarity
 
-        sim = einsum(q, k, '... i d, ... j d -> ... i j')
+        q_rotated = self.rotary_emb.rotate_queries_or_keys(q)
+        k_rotated = self.rotary_emb.rotate_queries_or_keys(k)
+
+        sim = einsum(q_rotated, k_rotated, '... i d, ... j d -> ... i j')
 
         # causal mask
 
