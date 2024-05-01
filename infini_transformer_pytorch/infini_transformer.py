@@ -1,11 +1,11 @@
 from typing import Tuple, List, Optional
 
 import torch
+from torch import nn, Tensor
 import torch.nn.functional as F
-from torch import nn, einsum, Tensor
 from torch.nn import Module, ModuleList
 
-from einops import rearrange, repeat, reduce
+from einops import einsum, rearrange, repeat, reduce
 from einops.layers.torch import Rearrange
 
 from rotary_embedding_torch import RotaryEmbedding
@@ -88,8 +88,9 @@ class CausalAttention(Module):
         n - sequence
         i - source sequence (q)
         j - target sequence (kv)
-        d - feature dimension (maybe keys)
-        e - feature dimension of values
+        d - feature dimension
+        dk - feature dimension keys (and queries)
+        dv - feature dimension of values
         """
 
         x = self.norm(x)
@@ -106,7 +107,7 @@ class CausalAttention(Module):
 
         # similarity
 
-        sim = einsum('... i d, ... j d -> ... i j', q, k)
+        sim = einsum(q, k, '... i d, ... j d -> ... i j')
 
         # causal mask
 
@@ -120,7 +121,7 @@ class CausalAttention(Module):
 
         # aggregate values
 
-        out = einsum('... i j, ... j d -> ... i d', attn, v)
+        out = einsum(attn, v, '... i j, ... j d -> ... i d')
 
         # the main contribution of the paper
         # Katharopoulos linear attention to kv memory of shape (batch, heads, dim keys, dim values)
@@ -134,11 +135,10 @@ class CausalAttention(Module):
         if exists(past_memories):
             past_memories_kv, past_memories_norm = past_memories
 
-            mem_out_unnormed = einsum('b h n d, b h d e -> b h n e', q, past_memories_kv)
+            mem_out_unnormed = einsum(q, past_memories, 'b h n dk, b h dk dv -> b h n dv')
+            mem_norm = einsum(q, past_memories_norm, 'b h n d, b h d -> b h n')
 
-            mem_norm = einsum('b h n d, b h d -> b h n', q, k)
             mem_norm = rearrange(mem_norm, '... -> ... 1')
-
             mem_out = mem_out_unnormed / mem_norm.clamp(min = eps)
 
             # now combine the present output of queries with the outputs querying the past compressed key/value memories
@@ -151,7 +151,7 @@ class CausalAttention(Module):
 
         # create the next memories
 
-        new_memories_kv = einsum('... n d, ... n e -> ... d e', k, v)
+        new_memories_kv = einsum(k, v, '... n dk, ... n dv -> ... dk dv')
         new_memories_norm = reduce(k, 'b h n d -> b h d', 'sum')
 
         if exists(past_memories):
