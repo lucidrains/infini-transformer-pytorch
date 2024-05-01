@@ -6,6 +6,8 @@ Implementation of <a href="https://arxiv.org/abs/2404.07143">Infini-Transformer<
 
 Although unlikely to beat <a href="https://github.com/lucidrains/ring-attention-pytorch">Ring Attention</a>, I think it is worth exploring, as the techniques are orthogonal.
 
+<a href="https://www.youtube.com/watch?v=r_UBBfTPcF0">Yannic Kilcher's explanation</a>
+
 ## Citations
 
 ```bibtex
