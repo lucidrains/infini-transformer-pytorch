@@ -101,11 +101,10 @@ class CausalAttention(Module):
         x = self.to_qkv(x)
         q, k, v = self.split_heads(x)
 
-        q = q * self.scale
-
         # similarity
 
-        q_rotated = self.rotary_emb.rotate_queries_or_keys(q)
+        q_scaled = q * self.scale
+        q_rotated = self.rotary_emb.rotate_queries_or_keys(q_scaled)
         k_rotated = self.rotary_emb.rotate_queries_or_keys(k)
 
         sim = einsum(q_rotated, k_rotated, '... i d, ... j d -> ... i j')
