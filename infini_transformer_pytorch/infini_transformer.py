@@ -1,4 +1,4 @@
-from typing import Tuple, Optional
+from typing import Tuple, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -9,6 +9,10 @@ from einops import rearrange, repeat, reduce
 from einops.layers.torch import Rearrange
 
 from rotary_embedding_torch import RotaryEmbedding
+
+# constants
+
+Memories = Tuple[Tensor, Tensor]
 
 # helpers
 
@@ -73,9 +77,9 @@ class CausalAttention(Module):
     def forward(
         self,
         x,
-        past_memories: Optional[Tuple[Tensor, Tensor]] = None,
+        past_memories: Optional[Memories] = None,
         eps = 1e-10
-    ):
+    ) -> Tuple[Tensor, Memories]:
         """
         ein notation:
 
@@ -203,14 +207,17 @@ class InfiniTransformer(Module):
     def forward(
         self,
         x,
+        past_memories: Optional[List[Memories]] = None,
         return_memories = False
     ):
         x = self.token_emb(x)
 
         new_memories = []
+        past_memories_iter = iter(default(past_memories, []))
 
         for attn, ff in self.layers:
-            attn_out, layer_new_memories = attn(x)
+            past_memories = next(past_memories_iter, None)
+            attn_out, layer_new_memories = attn(x, past_memories = past_memories)
 
             x = attn_out + x
             x = ff(x) + x
