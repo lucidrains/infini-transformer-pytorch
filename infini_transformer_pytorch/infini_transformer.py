@@ -135,7 +135,7 @@ class CausalAttention(Module):
         if exists(past_memories):
             past_memories_kv, past_memories_norm = past_memories
 
-            mem_out_unnormed = einsum(q, past_memories, 'b h n dk, b h dk dv -> b h n dv')
+            mem_out_unnormed = einsum(q, past_memories_kv, 'b h n dk, b h dk dv -> b h n dv')
             mem_norm = einsum(q, past_memories_norm, 'b h n d, b h d -> b h n')
 
             mem_norm = rearrange(mem_norm, '... -> ... 1')
@@ -208,7 +208,8 @@ class InfiniTransformer(Module):
         self,
         x,
         past_memories: Optional[List[Memories]] = None,
-        return_memories = False
+        return_memories = False,
+        detach_memories = False
     ):
         x = self.token_emb(x)
 
@@ -230,5 +231,10 @@ class InfiniTransformer(Module):
 
         if not return_memories:
             return logits
+
+        if detach_memories:
+            for (mem_kv, mem_norm) in new_memories:
+                mem_kv.detach_()
+                mem_norm.detach_()
 
         return logits, new_memories
