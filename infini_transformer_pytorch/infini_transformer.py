@@ -57,7 +57,8 @@ class CausalAttention(Module):
         *,
         dim_head = 128,
         heads = 8,
-        head_gate_init_value = 10.
+        head_gate_init_value = 10.,
+        use_mem_delta_rule = False
     ):
         super().__init__()
         dim_inner = dim_head * heads
@@ -73,6 +74,8 @@ class CausalAttention(Module):
         self.merge_heads = Rearrange('b h n d -> b n (h d)')
 
         self.head_gates = nn.Parameter(torch.ones(heads) * head_gate_init_value)
+
+        self.use_mem_delta_rule = use_mem_delta_rule
 
     def forward(
         self,
@@ -151,6 +154,16 @@ class CausalAttention(Module):
 
         # create the next memories
 
+        if exists(past_memories) and self.use_mem_delta_rule:
+            # eq (5) - the delta rule
+            v_unnormed = einsum(k, past_memories_kv, 'b h n dk, b h dk dv -> b h n dv')
+            v_norm = einsum(k, past_memories_norm, 'b h n d, b h d -> b h n')
+
+            v_norm = rearrange(v_norm, '... -> ... 1')
+            delta_v = v_unnormed / v_norm.clamp(min = eps)
+
+            v = v - delta_v
+
         new_memories_kv = einsum(k, v, '... n dk, ... n dv -> ... dk dv')
         new_memories_norm = reduce(k, 'b h n d -> b h d', 'sum')
 
@@ -178,7 +191,8 @@ class InfiniTransformer(Module):
         depth,
         dim_head = 128,
         heads = 8,
-        ff_mult = 4
+        ff_mult = 4,
+        use_mem_delta_rule = False  # in the paper, the delta rule didn't seem to do that much, but will include for completeness
     ):
         super().__init__()
 
@@ -191,7 +205,8 @@ class InfiniTransformer(Module):
             attn = CausalAttention(
                 dim = dim,
                 dim_head = dim_head,
-                heads = heads
+                heads = heads,
+                use_mem_delta_rule = use_mem_delta_rule
             )
 
             ff = FeedForward(
