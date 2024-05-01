@@ -6,6 +6,8 @@ from torch.nn import Module, ModuleList
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
+from rotary_embedding_torch import RotaryEmbedding
+
 # helpers
 
 def exists(v):
@@ -55,6 +57,8 @@ class CausalAttention(Module):
         self.scale = dim_head ** -0.5
         self.norm = RMSNorm(dim)
 
+        self.rotary_emb = RotaryEmbedding(dim_head)
+
         self.to_qkv = nn.Linear(dim, dim_inner * 3, bias = False)
         self.to_out = nn.Linear(dim_inner, dim, bias = False)
 
@@ -68,6 +72,11 @@ class CausalAttention(Module):
         q, k, v = self.split_heads(x)
 
         q = q * self.scale
+
+        # rotary
+
+        q = self.rotary_emb.rotate_queries_or_keys(q)
+        k = self.rotary_emb.rotate_queries_or_keys(k)
 
         # similarity
 

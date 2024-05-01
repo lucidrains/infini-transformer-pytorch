@@ -20,6 +20,7 @@ setup(
   ],
   install_requires=[
     'einops>=0.8.0',
+    'rotary-embedding-torch>=0.5.3',
     'torch>=2.0',
   ],
   classifiers=[
