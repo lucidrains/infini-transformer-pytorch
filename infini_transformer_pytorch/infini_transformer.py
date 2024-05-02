@@ -58,7 +58,8 @@ class CausalAttention(Module):
         dim_head = 128,
         heads = 8,
         head_gate_init_value = 10.,
-        use_mem_delta_rule = False
+        use_mem_delta_rule = False,
+        rotary_emb_linear_attn = False    # unsure whether to apply rotary embeddings to linear attention, so make it an option
     ):
         super().__init__()
         dim_inner = dim_head * heads
@@ -76,6 +77,7 @@ class CausalAttention(Module):
         self.head_gates = nn.Parameter(torch.ones(heads) * head_gate_init_value)
 
         self.use_mem_delta_rule = use_mem_delta_rule
+        self.rotary_emb_linear_attn = rotary_emb_linear_attn
 
     def forward(
         self,
@@ -129,6 +131,11 @@ class CausalAttention(Module):
 
         q = F.elu(q) + 1
         k = F.elu(k) + 1
+
+        # maybe apply rotary embeddings to q, k for linear attention to past
+
+        if self.rotary_emb_linear_attn:
+            q, k = map(self.rotary_emb.rotate_queries_or_keys, (q, k))
 
         # retrieve from past memories
 
@@ -190,7 +197,8 @@ class InfiniTransformer(Module):
         dim_head = 128,
         heads = 8,
         ff_mult = 4,
-        use_mem_delta_rule = False  # in the paper, the delta rule didn't seem to do that much, but will include for completeness
+        use_mem_delta_rule = False,     # in the paper, the delta rule didn't seem to do that much, but will include for completeness
+        rotary_emb_linear_attn = False
     ):
         super().__init__()
 
@@ -204,7 +212,8 @@ class InfiniTransformer(Module):
                 dim = dim,
                 dim_head = dim_head,
                 heads = heads,
-                use_mem_delta_rule = use_mem_delta_rule
+                use_mem_delta_rule = use_mem_delta_rule,
+                rotary_emb_linear_attn = rotary_emb_linear_attn
             )
 
             ff = FeedForward(
