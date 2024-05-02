@@ -132,14 +132,16 @@ class CausalAttention(Module):
 
         # retrieve from past memories if present
 
+        def retrieve_from_kv_memories(t, kv, z_norm):
+            numer = einsum(t, past_memories_kv, 'b h n dk, b h dk dv -> b h n dv')
+            denom = einsum(t, past_memories_norm, 'b h n d, b h d -> b h n')
+
+            denom = rearrange(denom, '... -> ... 1')
+            return numer / denom.clamp(min = eps) # eq (3)
+
         if exists(past_memories):
             past_memories_kv, past_memories_norm = past_memories
-
-            mem_out_unnormed = einsum(q, past_memories_kv, 'b h n dk, b h dk dv -> b h n dv')
-            mem_norm = einsum(q, past_memories_norm, 'b h n d, b h d -> b h n')
-
-            mem_norm = rearrange(mem_norm, '... -> ... 1')
-            mem_out = mem_out_unnormed / mem_norm.clamp(min = eps) # eq (3)
+            mem_out = retrieve_from_kv_memories(q, past_memories_kv, past_memories_norm)
 
             # now combine the present output of queries with the outputs querying the past compressed key/value memories
             # in paper, they use a sigmoid gating scheme with learned gate per head
@@ -152,13 +154,9 @@ class CausalAttention(Module):
         # create the next memories
 
         if exists(past_memories) and self.use_mem_delta_rule:
+            delta_v = retrieve_from_kv_memories(k, past_memories_kv, past_memories_norm)
+
             # eq (5) - the delta rule
-            v_unnormed = einsum(k, past_memories_kv, 'b h n dk, b h dk dv -> b h n dv')
-            v_norm = einsum(k, past_memories_norm, 'b h n d, b h d -> b h n')
-
-            v_norm = rearrange(v_norm, '... -> ... 1')
-            delta_v = v_unnormed / v_norm.clamp(min = eps)
-
             v = v - delta_v
 
         new_memories_kv = einsum(k, v, '... n dk, ... n dv -> ... dk dv')
