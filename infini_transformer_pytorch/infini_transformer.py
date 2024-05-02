@@ -22,6 +22,12 @@ def exists(v):
 def default(v, d):
     return v if exists(v) else d
 
+def detach_memories_(memories: Memories):
+    if detach_memories:
+        for (mem_kv, mem_norm) in memories:
+            mem_kv.detach_()
+            mem_norm.detach_()
+
 # classes
 
 class RMSNorm(Module):
@@ -255,8 +261,6 @@ class InfiniTransformer(Module):
             return logits
 
         if detach_memories:
-            for (mem_kv, mem_norm) in new_memories:
-                mem_kv.detach_()
-                mem_norm.detach_()
+            detach_memories_(new_memories)
 
         return logits, new_memories
