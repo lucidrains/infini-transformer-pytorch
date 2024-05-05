@@ -1,4 +1,5 @@
-from typing import Tuple, List, Optional
+from __future__ import annotations
+from typing import Tuple, List
 
 import torch
 from torch import nn, Tensor
@@ -87,7 +88,8 @@ class CausalAttention(Module):
     def forward(
         self,
         x,
-        past_memories: Optional[Memories] = None,
+        past_memories: Memories | None = None,
+        return_new_memories = False,
         eps = 1e-10
     ) -> Tuple[Tensor, Memories]:
         """
@@ -164,6 +166,17 @@ class CausalAttention(Module):
 
             out = out * gates + mem_out * (1. - gates)  # eq (6) - figure 3 shows how heads emergently specialize to look either at the present, past, or a bit of both
 
+        # merge heads and combine
+
+        out = self.merge_heads(out)
+        out = self.to_out(out)
+
+        # if new memories are not needed, early return
+        # at inference time, kv cache up to segment length and then compress memories into kv
+
+        if not return_new_memories:
+            return out, past_memories
+
         # create the next memories
 
         if exists(past_memories) and self.use_mem_delta_rule:
@@ -182,11 +195,6 @@ class CausalAttention(Module):
             new_memories_norm = new_memories_norm + past_memories_norm    # eq (4)
 
         new_memories = (new_memories_kv, new_memories_norm)
-
-        # merge heads and combine
-
-        out = self.merge_heads(out)
-        out = self.to_out(out)
 
         return out, new_memories
 
@@ -234,7 +242,7 @@ class InfiniTransformer(Module):
     def forward(
         self,
         x,
-        past_memories: Optional[List[Memories]] = None,
+        past_memories: List[Memories] | None = None,
         return_memories = False,
         detach_memories = False
     ):
@@ -245,7 +253,12 @@ class InfiniTransformer(Module):
 
         for attn, ff in self.layers:
             past_memories = next(past_memories_iter, None)
-            attn_out, layer_new_memories = attn(x, past_memories = past_memories)
+
+            attn_out, layer_new_memories = attn(
+                x,
+                past_memories = past_memories,
+                return_new_memories = return_memories
+            )
 
             x = attn_out + x
             x = ff(x) + x
@@ -257,7 +270,7 @@ class InfiniTransformer(Module):
         logits = self.to_logits(embed)
 
         if not return_memories:
-            return logits
+            return logits, past_memories
 
         if detach_memories:
             detach_memories_(new_memories)
