@@ -104,42 +104,35 @@ class InfiniTransformerWrapper(Module):
         init_len = out.shape[-1]
 
         # sample from the model token by token
-        # keeping track of kv cache and when to compress into new memories
-
-        curr_len = init_len
+        # keeping track of kv cache and when to compress into new memories        
 
         cached_kv = None
         past_memories = None
 
-        with tqdm(initial = init_len, total = seq_len) as pbar:
+        for curr_len in tqdm(range(init_len, seq_len)):
 
-            while curr_len < seq_len:
+            # forward the model with cached key / values and past memories
 
-                # forward the model with cached key / values and past memories
+            logits, cached_kv, past_memories = self.model(
+                prompt,
+                cached_kv = cached_kv,
+                past_memories = past_memories,
+                return_new_memories = divisible_by(curr_len, segment_length)
+            )
 
-                logits, cached_kv, past_memories = self.model(
-                    prompt,
-                    cached_kv = cached_kv,
-                    past_memories = past_memories,
-                    return_new_memories = divisible_by(curr_len, segment_length)
-                )
+            # grab the last logit
 
-                # grab the last logit
+            logits = logits[:, -1]
 
-                logits = logits[:, -1]
+            # filter by either topk or nucleus
+            # and sample
 
-                # filter by either topk or nucleus
-                # and sample
+            filtered_logits = filter_fn(logits, **filter_kwargs)
+            sampled = gumbel_sample(filtered_logits, temperature = temperature)
 
-                filtered_logits = filter_fn(logits, **filter_kwargs)
-                sampled = gumbel_sample(filtered_logits, temperature = temperature)
+            # concat sampled token
 
-                # concat sampled token
-
-                out, _ = pack((out, sampled), 'b *')
-
-                curr_len += 1
-                pbar.update(1)
+            out, _ = pack((out, sampled), 'b *')
 
         # return output
 
