@@ -19,8 +19,8 @@ class Memories(NamedTuple):
 
 class TransformerReturn(NamedTuple):
     logits: Tensor
-    cached_kvs: List[Tensor]
-    past_memories: Memories
+    cached_kvs: List[Tensor] | None
+    past_memories: List[Memories] | None
 
 # helpers
 
@@ -264,7 +264,7 @@ class InfiniTransformer(Module):
         self,
         x,
         past_memories: List[Memories] | None = None,
-        cached_kv: Tensor | None = None,
+        cached_kv: List[Tensor] | None = None,
         return_memories = False,
         detach_memories = False
     ) -> TransformerReturn:
