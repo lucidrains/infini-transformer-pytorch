@@ -30,11 +30,15 @@ class InfiniTransformerWrapper(Module):
     def __init__(
         self,
         model: InfiniTransformer,
-        segment_length = 512
+        segment_length = 512,
+        ignore_index = -1
     ):
         super().__init__()
         self.model = model
         self.segment_length = segment_length
+
+        # loss related
+        self.ignore_index = ignore_index
 
     @torch.no_grad()
     def generate(
@@ -84,7 +88,8 @@ class InfiniTransformerWrapper(Module):
             segment_losses = F.cross_entropy(
                 rearrange(logits, 'b n c -> b c n'),
                 segment_label,
-                reduction = 'none'
+                reduction = 'none',
+                ignore_index = self.ignore_index,
             )
 
             losses.append(segment_losses)
