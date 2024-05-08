@@ -99,7 +99,7 @@ class CausalAttention(Module):
         past_memories: Memories | None = None,
         return_new_memories = False,
         eps = 1e-10
-    ) -> Tuple[Tensor, Memories]:
+    ) -> Tuple[Tensor, Tensor, Memories]:
         """
         ein notation:
 
