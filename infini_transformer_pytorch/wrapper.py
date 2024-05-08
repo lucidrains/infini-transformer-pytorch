@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Callable
 
 import torch
-from torch import nn
+from torch import nn, Tensor
 from torch.nn import Module
 import torch.nn.functional as F
 
@@ -25,6 +25,9 @@ def default(v, d):
 
 def divisible_by(num, den):
     return (num % den) == 0
+
+def is_empty(t: Tensor):
+    return t.numel() == 0
 
 # sampling helpers
 
@@ -70,13 +73,17 @@ class InfiniTransformerWrapper(Module):
         self,
         model: InfiniTransformer,
         segment_length = 512,
+        detach_mems_every_num_segments = 2,
         ignore_index = -1
     ):
         super().__init__()
         self.model = model
+
         self.segment_length = segment_length
+        self.detach_mems_every_num_segments = detach_mems_every_num_segments
 
         # loss related
+
         self.ignore_index = ignore_index
 
     @property
@@ -145,23 +152,42 @@ class InfiniTransformerWrapper(Module):
     def forward(
         self,
         seq,
-        segment_length = None
+        segment_length = None,
+        backwards = False
     ):
         segment_length = default(segment_length, self.segment_length)
 
         seq, label = seq[:, :-1], seq[:, 1:]
+
+        # put into train mode if doing backwards within forward call
+
+        if backwards:
+            self.model.train()
+
+        total_tokens = (label != self.ignore_index).sum().item()
 
         # split the sequence by segment length
 
         split_seq = seq.split(segment_length, dim = -1)
         split_label = label.split(segment_length, dim = -1)
 
+        num_segments = len(split_seq)
+
         # go over each segment length and calculate cross entropy loss
 
-        losses = []
+        total_loss = 0.
         past_memories = None
 
-        for segment_seq, segment_label in zip(split_seq, split_label):
+        running_loss = 0.
+
+        for ind, (segment_seq, segment_label) in enumerate(zip(split_seq, split_label)):
+            segment_num = ind + 1
+            is_last = segment_num == num_segments
+
+            should_detach_memories = divisible_by(segment_num, self.detach_mems_every_num_segments)
+            should_backwards = backwards and (is_last or should_detach_memories)
+
+            # model forwards for logits and past memories
 
             logits, _, past_memories = self.model(
                 segment_seq,
@@ -169,19 +195,36 @@ class InfiniTransformerWrapper(Module):
                 return_new_memories = True
             )
 
-            segment_losses = F.cross_entropy(
+            # calculate cross entropy loss for segment
+
+            segment_loss = F.cross_entropy(
                 rearrange(logits, 'b n c -> b c n'),
                 segment_label,
                 reduction = 'none'
             )
 
-            mask = segment_label != self.ignore_index
+            # make sure segment losses do not include ignored index
+            # then also make sure the segment loss is scaled
 
-            losses.append(segment_losses[mask])
+            segment_mask = segment_label != self.ignore_index
+            num_segment_tokens = segment_mask.sum()
+            frac_tokens = num_segment_tokens / total_tokens
 
-        # combine all losses and average
+            segment_loss = segment_loss[segment_mask]
+            segment_scaled_loss = segment_loss.mean() * frac_tokens
 
-        losses, _ = pack(losses, '*')
-        loss = losses.mean()
+            total_loss = total_loss + segment_scaled_loss
+            running_loss = running_loss + segment_scaled_loss
 
-        return loss
+            # perform backwards every `(num_segment * detach_mems_every_num_segments)`
+
+            if should_backwards:
+                running_loss.backward()
+                running_loss = 0.
+
+            # detach memories if need be
+
+            if should_detach_memories and not is_last:
+                detach_memories_(past_memories)
+
+        return total_loss

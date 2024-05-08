@@ -53,26 +53,36 @@ model = InfiniTransformer(
     num_tokens = 256,
     dim = 512,
     depth = 8,
-    dim_head = 128,  # high head dimension may be part of the reason they got good results (kv has high capacity)
+    dim_head = 128,
     heads = 8,
     rotary_emb_linear_attn = True
 )
 
 wrapper = InfiniTransformerWrapper(
     model,
-    segment_length = 512
-)
+    segment_length = 512,
+    detach_mems_every_num_segments = 2 # greater than 1 so the network can learn how to 'write' to the fast weight memories
+).cuda()
 
 # mock input
 
-seq = torch.randint(0, 256, (2, 7777))
+seq = torch.randint(0, 256, (2, 10000)).cuda() # can be arbitrarily long sequence
 
 # training
 
-loss = wrapper(seq)
-loss.backward()
+loss = wrapper(
+    seq,
+    backwards = True # will automatically segment and accumulate gradients when it detaches the memories
+)
 
 # after much data...
+
+# calculating eval loss
+
+with torch.no_grad():
+    wrapper.eval()
+    eval_loss = wrapper(seq)
+
 # generating is as easy as
 
 output = wrapper.generate(seq_len = 8192, prompt = seq[:, :1])
