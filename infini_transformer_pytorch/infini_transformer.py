@@ -19,8 +19,8 @@ class Memories(NamedTuple):
 
 class TransformerReturn(NamedTuple):
     logits: Tensor
-    cached_kvs: List[Tensor]
-    past_memories: Memories
+    cached_kvs: List[Tensor] | None
+    past_memories: List[Memories] | None
 
 # helpers
 
@@ -30,7 +30,7 @@ def exists(v):
 def default(v, d):
     return v if exists(v) else d
 
-def detach_memories_(memories: Memories):
+def detach_memories_(memories: List[Memories]):
     for (mem_kv, mem_norm) in memories:
         mem_kv.detach_()
         mem_norm.detach_()
@@ -264,7 +264,7 @@ class InfiniTransformer(Module):
         self,
         x,
         past_memories: List[Memories] | None = None,
-        cached_kv: Tensor | None = None,
+        cached_kv: List[Tensor] | None = None,
         return_memories = False,
         detach_memories = False
     ) -> TransformerReturn:
