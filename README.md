@@ -37,6 +37,42 @@ logits3, cached_kv3, mem3 = transformer(x, past_memories = mem2, cached_kv = cac
 
 ```
 
+Training a transformer with recurrence usually trips up a lot of researchers, so to make it easy, just wrap it with `InfiniTransformerWrapper`
+
+```python
+import torch
+
+from infini_transformer_pytorch import (
+    InfiniTransformer,
+    InfiniTransformerWrapper
+)
+
+# model and wrapper
+
+model = InfiniTransformer(
+    num_tokens = 256,
+    dim = 512,
+    depth = 8,
+    dim_head = 128,  # high head dimension may be part of the reason they got good results (kv has high capacity)
+    heads = 8,
+    rotary_emb_linear_attn = True
+)
+
+wrapper = InfiniTransformerWrapper(
+    model,
+    segment_length = 512
+)
+
+# mock input
+
+seq = torch.randint(0, 256, (2, 4096 + 1))
+
+# training
+
+loss = wrapper(seq)
+loss.backward()
+```
+
 ## Citations
 
 ```bibtex

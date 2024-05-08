@@ -35,6 +35,10 @@ def detach_memories_(memories: List[Memories]):
         mem_kv.detach_()
         mem_norm.detach_()
 
+def detach_cached_kv_(cached_kvs: List[Tensor]):
+    for cached_kv in cached_kvs:
+        cached_kv.detach_()
+
 # classes
 
 class RMSNorm(Module):
@@ -305,8 +309,7 @@ class InfiniTransformer(Module):
         logits = self.to_logits(embed)
 
         if detach_memories:
-            for cached_kv in new_cached_kv:
-                cached_kv.detach_()
+            detach_cached_kv_(new_cached_kv)
 
         if not return_memories:
             return TransformerReturn(logits, new_cached_kv, past_memories)
