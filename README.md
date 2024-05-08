@@ -1,6 +1,6 @@
 <img src="./infini-attention.png" width="300px"></img>
 
-## Infini-Transformer - Pytorch (wip)
+## Infini-Transformer - Pytorch
 
 Implementation of <a href="https://arxiv.org/abs/2404.07143">Infini-Transformer</a> in Pytorch. They use a linear attention scheme to compress past memories and demonstrate multiple SOTAs for long context benchmarks.
 
@@ -72,6 +72,10 @@ seq = torch.randint(0, 256, (2, 4096 + 1))
 loss = wrapper(seq)
 loss.backward()
 ```
+
+## Todo
+
+- [ ] working example with enwik8
 
 ## Citations
 

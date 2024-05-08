@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'infini-transformer-pytorch',
   packages = find_packages(exclude = []),
-  version = '0.0.20',
+  version = '0.0.21',
   license='MIT',
   description = 'Infini-Transformer in Pytorch',
   author = 'Phil Wang',
@@ -22,6 +22,7 @@ setup(
     'einops>=0.8.0',
     'rotary-embedding-torch>=0.5.3',
     'torch>=2.0',
+    'tqdm'
   ],
   classifiers=[
     'Development Status :: 4 - Beta',
