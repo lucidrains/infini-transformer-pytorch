@@ -71,6 +71,13 @@ seq = torch.randint(0, 256, (2, 4096 + 1))
 
 loss = wrapper(seq)
 loss.backward()
+
+# after much data...
+# generating is as easy as
+
+output = wrapper.generate(seq_len = 8192, prompt = seq[:, :1])
+
+output.shape # (2, 8192 - 1)
 ```
 
 ## Todo
