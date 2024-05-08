@@ -148,7 +148,6 @@ class InfiniTransformerWrapper(Module):
         segment_length = None
     ):
         segment_length = default(segment_length, self.segment_length)
-        assert divisible_by(seq.shape[-1] - 1, segment_length)
 
         seq, label = seq[:, :-1], seq[:, 1:]
 

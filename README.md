@@ -65,7 +65,7 @@ wrapper = InfiniTransformerWrapper(
 
 # mock input
 
-seq = torch.randint(0, 256, (2, 4096 + 1))
+seq = torch.randint(0, 256, (2, 7777))
 
 # training
 
