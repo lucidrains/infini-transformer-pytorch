@@ -51,7 +51,12 @@ class RMSNorm(Module):
         return F.normalize(x, dim = -1) * self.scale * self.gamma
 
 class FeedForward(Module):
-    def __init__(self, dim, mult = 4):
+    def __init__(
+        self,
+        dim,
+        mult = 4,
+        dropout = 0.
+    ):
         super().__init__()
         dim_inner = int(mult * dim * 2 / 3)
 
@@ -59,10 +64,13 @@ class FeedForward(Module):
         self.proj_in = nn.Linear(dim, dim_inner * 2)
         self.proj_out = nn.Linear(dim_inner, dim)
 
+        self.dropout = nn.Dropout(dropout)
+
     def forward(self, x):
         x = self.norm(x)
         x, gates = self.proj_in(x).chunk(2, dim = -1)
         x = F.gelu(gates) * x
+        x = self.dropout(x)
         return self.proj_out(x)
 
 # attention
@@ -74,6 +82,7 @@ class CausalAttention(Module):
         *,
         dim_head = 128,
         heads = 8,
+        dropout = 0.,
         head_gate_init_value = 10.,
         use_mem_delta_rule = False,
         rotary_emb_linear_attn = False    # unsure whether to apply rotary embeddings to linear attention, so make it an option
@@ -87,6 +96,8 @@ class CausalAttention(Module):
 
         self.to_qkv = nn.Linear(dim, dim_inner * 3, bias = False)
         self.to_out = nn.Linear(dim_inner, dim, bias = False)
+
+        self.dropout = nn.Dropout(dropout)
 
         self.split_heads = Rearrange('b n (qkv h d) -> qkv b h n d', qkv = 3, h = heads)
         self.merge_heads = Rearrange('b h n d -> b n (h d)')
@@ -150,6 +161,10 @@ class CausalAttention(Module):
         # attend
 
         attn = sim.softmax(dim = -1)
+
+        # dropout
+
+        attn = self.dropout(attn)
 
         # aggregate values
 
@@ -234,7 +249,9 @@ class InfiniTransformer(Module):
         depth,
         dim_head = 128,
         heads = 8,
+        attn_dropout = 0.,
         ff_mult = 4,
+        ff_dropout = 0.,
         use_mem_delta_rule = False,     # in the paper, the delta rule didn't seem to do that much, but will include for completeness
         rotary_emb_linear_attn = False
     ):
@@ -251,12 +268,14 @@ class InfiniTransformer(Module):
                 dim_head = dim_head,
                 heads = heads,
                 use_mem_delta_rule = use_mem_delta_rule,
-                rotary_emb_linear_attn = rotary_emb_linear_attn
+                rotary_emb_linear_attn = rotary_emb_linear_attn,
+                dropout = attn_dropout
             )
 
             ff = FeedForward(
                 dim = dim,
-                mult = ff_mult
+                mult = ff_mult,
+                dropout = ff_dropout
             )
 
             self.layers.append(ModuleList([attn, ff]))
