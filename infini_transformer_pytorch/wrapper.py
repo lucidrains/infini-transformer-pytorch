@@ -78,7 +78,7 @@ class InfiniTransformerWrapper(Module):
             logits, _, past_memories = self.model(
                 segment_seq,
                 past_memories = past_memories,
-                return_memories = True
+                return_new_memories = True
             )
 
             segment_losses = F.cross_entropy(

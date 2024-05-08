@@ -31,9 +31,9 @@ transformer = InfiniTransformer(
 
 x = torch.randint(0, 256, (1, 1024))
 
-logits1, cached_kv1, mem1 = transformer(x, return_memories = False)
-logits2, cached_kv2, mem2 = transformer(x, past_memories = mem1, cached_kv = cached_kv1, return_memories = False)
-logits3, cached_kv3, mem3 = transformer(x, past_memories = mem2, cached_kv = cached_kv2, return_memories = True)
+logits1, cached_kv1, mem1 = transformer(x, return_new_memories = False)
+logits2, cached_kv2, mem2 = transformer(x, past_memories = mem1, cached_kv = cached_kv1, return_new_memories = False)
+logits3, cached_kv3, mem3 = transformer(x, past_memories = mem2, cached_kv = cached_kv2, return_new_memories = True)
 
 ```
 

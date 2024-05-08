@@ -269,7 +269,7 @@ class InfiniTransformer(Module):
         x,
         past_memories: List[Memories] | None = None,
         cached_kv: List[Tensor] | None = None,
-        return_memories = False,
+        return_new_memories = False,
         detach_memories = False
     ) -> TransformerReturn:
 
@@ -291,7 +291,7 @@ class InfiniTransformer(Module):
                 x,
                 cached_kv = next(cached_kv_iter, None),
                 past_memories = next(past_memories_iter, None),
-                return_new_memories = return_memories
+                return_new_memories = return_new_memories
             )
 
             x = attn_out + x
@@ -311,7 +311,7 @@ class InfiniTransformer(Module):
         if detach_memories:
             detach_cached_kv_(new_cached_kv)
 
-        if not return_memories:
+        if not return_new_memories:
             return TransformerReturn(logits, new_cached_kv, past_memories)
 
         if detach_memories:
