@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple, List
+from typing import Tuple, List, NamedTuple
 
 import torch
 from torch import nn, Tensor
@@ -13,7 +13,14 @@ from rotary_embedding_torch import RotaryEmbedding
 
 # constants
 
-Memories = Tuple[Tensor, Tensor]
+class Memories(NamedTuple):
+    kv_mem: Tensor
+    k_norm: Tensor
+
+class TransformerReturn(NamedTuple):
+    logits: Tensor
+    cached_kv: Tensor
+    past_memories: Memories
 
 # helpers
 
@@ -208,7 +215,7 @@ class CausalAttention(Module):
             new_memories_kv = new_memories_kv + past_memories_kv          # eq (4)
             new_memories_norm = new_memories_norm + past_memories_norm    # eq (4)
 
-        new_memories = (new_memories_kv, new_memories_norm)
+        new_memories = Memories(new_memories_kv, new_memories_norm)
 
         return out, None, new_memories
 
@@ -260,11 +267,7 @@ class InfiniTransformer(Module):
         cached_kv: Tensor | None = None,
         return_memories = False,
         detach_memories = False
-    ) -> Tuple[
-        Tensor,
-        Tensor | None,
-        Memories | None
-    ]:
+    ) -> TransformerReturn:
 
         x = self.token_emb(x)
 
@@ -306,9 +309,9 @@ class InfiniTransformer(Module):
                 cached_kv.detach_()
 
         if not return_memories:
-            return logits, new_cached_kv, past_memories
+            return TransformerReturn(logits, new_cached_kv, past_memories)
 
         if detach_memories:
             detach_memories_(new_memories)
 
-        return logits, None, new_memories
+        return TransformerReturn(logits, None, new_memories)
