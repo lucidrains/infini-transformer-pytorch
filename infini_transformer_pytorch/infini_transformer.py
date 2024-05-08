@@ -18,7 +18,7 @@ Memories = Tuple[Tensor, Tensor]
 # helpers
 
 def exists(v):
-    return v
+    return v is not None
 
 def default(v, d):
     return v if exists(v) else d
@@ -88,6 +88,7 @@ class CausalAttention(Module):
     def forward(
         self,
         x,
+        cached_kv: Tensor | None = None,
         past_memories: Memories | None = None,
         return_new_memories = False,
         eps = 1e-10
@@ -109,6 +110,17 @@ class CausalAttention(Module):
 
         x = self.to_qkv(x)
         q, k, v = self.split_heads(x)
+
+        # handle cached key / values
+
+        if exists(cached_kv):
+            cached_k, cached_v = cached_kv
+            k = torch.cat((cached_k, k), dim = -2)
+            v = torch.cat((cached_v, v), dim = -2)
+
+        # save original keys and values for cached kv
+
+        orig_k, orig_v = k, v
 
         # similarity
 
@@ -175,7 +187,9 @@ class CausalAttention(Module):
         # at inference time, kv cache up to segment length and then compress memories into kv
 
         if not return_new_memories:
-            return out, past_memories
+            cached_kv = torch.stack((orig_k, orig_v))
+
+            return out, cached_kv, past_memories
 
         # create the next memories
 
@@ -196,7 +210,7 @@ class CausalAttention(Module):
 
         new_memories = (new_memories_kv, new_memories_norm)
 
-        return out, new_memories
+        return out, None, new_memories
 
 # main class
 
@@ -243,36 +257,58 @@ class InfiniTransformer(Module):
         self,
         x,
         past_memories: List[Memories] | None = None,
+        cached_kv: Tensor | None = None,
         return_memories = False,
         detach_memories = False
-    ):
+    ) -> Tuple[
+        Tensor,
+        Tensor | None,
+        Memories | None
+    ]:
+
         x = self.token_emb(x)
 
+        new_cached_kv = []
         new_memories = []
+
+        # iterators for cached key / values and past compressed memories
+
+        cached_kv_iter = iter(default(cached_kv, []))
         past_memories_iter = iter(default(past_memories, []))
 
-        for attn, ff in self.layers:
-            past_memories = next(past_memories_iter, None)
+        # going through layers of infini-transformer
 
-            attn_out, layer_new_memories = attn(
+        for attn, ff in self.layers:
+
+            attn_out, layer_cached_kv, layer_new_memories = attn(
                 x,
-                past_memories = past_memories,
+                cached_kv = next(cached_kv_iter, None),
+                past_memories = next(past_memories_iter, None),
                 return_new_memories = return_memories
             )
 
             x = attn_out + x
             x = ff(x) + x
 
+            new_cached_kv.append(layer_cached_kv)
             new_memories.append(layer_new_memories)
+
+        # final norm
 
         embed = self.norm(x)
 
+        # logits
+
         logits = self.to_logits(embed)
 
+        if detach_memories:
+            for cached_kv in new_cached_kv:
+                cached_kv.detach_()
+
         if not return_memories:
-            return logits, past_memories
+            return logits, new_cached_kv, past_memories
 
         if detach_memories:
             detach_memories_(new_memories)
 
-        return logits, new_memories
+        return logits, None, new_memories
