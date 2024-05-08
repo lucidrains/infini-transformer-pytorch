@@ -172,15 +172,16 @@ class InfiniTransformerWrapper(Module):
             segment_losses = F.cross_entropy(
                 rearrange(logits, 'b n c -> b c n'),
                 segment_label,
-                reduction = 'none',
-                ignore_index = self.ignore_index,
+                reduction = 'none'
             )
 
-            losses.append(segment_losses)
+            mask = segment_label != self.ignore_index
+
+            losses.append(segment_losses[mask])
 
         # combine all losses and average
 
-        losses, _ = pack(losses, 'b *')
+        losses, _ = pack(losses, '*')
         loss = losses.mean()
 
         return loss
