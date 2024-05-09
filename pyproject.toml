@@ -1,6 +1,6 @@
 [project]
 name = "infini-transformer-pytorch"
-version = "0.1.1"
+version = "0.1.2"
 description = "Infini-Transformer in Pytorch"
 authors = [
     { name = "Phil Wang", email = "lucidrains@gmail.com" }
@@ -42,13 +42,14 @@ examples = ["tqdm", "numpy"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.rye]
 managed = true
 dev-dependencies = [
     "ruff>=0.4.2",
     "pytest>=8.2.0",
-    "pytest-examples>=0.0.10",
-    "pytest-cov>=5.0.0",
 ]
 
 [tool.hatch.metadata]

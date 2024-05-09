@@ -94,7 +94,7 @@ output.shape # (2, 8192 - 1)
 
 Train an autoregressive enwik8
 
-```python
+```bash
 $ python train.py
 ```
 
