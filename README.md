@@ -72,7 +72,7 @@ seq = torch.randint(0, 256, (2, 10000)).cuda() # can be arbitrarily long sequenc
 
 loss = wrapper(
     seq,
-    backwards = True # will automatically segment and accumulate gradients when it detaches the memories
+    backward = True # will automatically segment and accumulate gradients when it detaches the memories
 )
 
 # after much data...
@@ -90,9 +90,17 @@ output = wrapper.generate(seq_len = 8192, prompt = seq[:, :1])
 output.shape # (2, 8192 - 1)
 ```
 
+## Testing
+
+Train an autoregressive enwik8
+
+```python
+$ python train.py
+```
+
 ## Todo
 
-- [ ] working example with enwik8
+- [x] working example with enwik8
 
 ## Citations
 

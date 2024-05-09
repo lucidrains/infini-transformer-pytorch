@@ -153,7 +153,8 @@ class InfiniTransformerWrapper(Module):
         self,
         seq,
         segment_length = None,
-        backwards = False
+        backward = False,
+        grad_accum_scale = 1.
     ):
         segment_length = default(segment_length, self.segment_length)
 
@@ -161,7 +162,7 @@ class InfiniTransformerWrapper(Module):
 
         # put into train mode if doing backwards within forward call
 
-        if backwards:
+        if backward:
             self.model.train()
 
         total_tokens = (label != self.ignore_index).sum().item()
@@ -185,7 +186,7 @@ class InfiniTransformerWrapper(Module):
             is_last = segment_num == num_segments
 
             should_detach_memories = divisible_by(segment_num, self.detach_mems_every_num_segments)
-            should_backwards = backwards and (is_last or should_detach_memories)
+            should_backward = backward and (is_last or should_detach_memories)
 
             # model forwards for logits and past memories
 
@@ -218,8 +219,8 @@ class InfiniTransformerWrapper(Module):
 
             # perform backwards every `(num_segment * detach_mems_every_num_segments)`
 
-            if should_backwards:
-                running_loss.backward()
+            if should_backward:
+                (running_loss / grad_accum_scale).backward()
                 running_loss = 0.
 
             # detach memories if need be
