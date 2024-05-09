@@ -101,6 +101,7 @@ $ python train.py
 ## Todo
 
 - [ ] `detach_mems_every_num_segments` hyperparameter is too confusing, get rid of it
+- [ ] experiment with enhanced recurrence, perhaps with a linear projection (talking heads on kv or linear projection on k, v separately) before sending the memories to the layer before
 - [x] working example with enwik8
 
 ## Citations
