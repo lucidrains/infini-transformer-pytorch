@@ -1,6 +1,6 @@
 [project]
 name = "infini-transformer-pytorch"
-version = "0.1.2"
+version = "0.1.4"
 description = "Infini-Transformer in Pytorch"
 authors = [
     { name = "Phil Wang", email = "lucidrains@gmail.com" }
@@ -54,6 +54,10 @@ dev-dependencies = [
     "ruff>=0.4.2",
     "pytest>=8.2.0",
 ]
+
+[tool.ruff]
+line-length = 1000
+ignore-init-module-imports = true
 
 [tool.hatch.metadata]
 allow-direct-references = true

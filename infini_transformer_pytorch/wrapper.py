@@ -1,8 +1,9 @@
 from __future__ import annotations
+from math import ceil
 from typing import Callable
 
 import torch
-from torch import nn, Tensor
+from torch import Tensor
 from torch.nn import Module
 import torch.nn.functional as F
 
@@ -11,8 +12,7 @@ from tqdm import tqdm
 
 from infini_transformer_pytorch.infini_transformer import (
     InfiniTransformer,
-    detach_memories_,
-    detach_cached_kv_
+    detach_memories_
 )
 
 # helper functions

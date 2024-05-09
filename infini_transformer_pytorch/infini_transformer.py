@@ -6,7 +6,7 @@ from torch import nn, Tensor
 import torch.nn.functional as F
 from torch.nn import Module, ModuleList
 
-from einops import einsum, rearrange, repeat, reduce
+from einops import einsum, rearrange, reduce
 from einops.layers.torch import Rearrange
 
 from rotary_embedding_torch import RotaryEmbedding

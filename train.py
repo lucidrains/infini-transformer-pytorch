@@ -3,13 +3,11 @@ from infini_transformer_pytorch import (
     InfiniTransformerWrapper
 )
 
-import random
 import tqdm
 import gzip
 import numpy as np
 import torch
-import torch.optim as optim
-from torch.nn import functional as F
+from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
 
 # constants
@@ -83,7 +81,7 @@ val_loader    = cycle(DataLoader(val_dataset, batch_size = 1))
 
 # optimizer
 
-optim = torch.optim.Adam(model.parameters(), lr = LEARNING_RATE)
+optim = Adam(model.parameters(), lr = LEARNING_RATE)
 
 # training
 
@@ -112,7 +110,7 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval = 10.):
 
         ids = next(val_loader)[0][:PRIME_LEN]
         prime = decode_tokens(ids)
-        print(f'%s \n\n %s', (prime, '*' * 100))
+        print('%s \n\n %s', (prime, '*' * 100))
 
         sample = wrapper.generate(
             prompt = ids[None, :],

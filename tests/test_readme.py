@@ -1,4 +1,3 @@
-import pytest
 
 import torch
 
@@ -47,7 +46,7 @@ def test_generate():
 
     # training
 
-    loss = wrapper(
+    wrapper(
         seq,
         backward = True # will automatically segment and accumulate gradients when it detaches the memories
     )
@@ -58,8 +57,8 @@ def test_generate():
 
     with torch.no_grad():
         wrapper.eval()
-        eval_loss = wrapper(seq)
+        wrapper(seq)
 
     # generating is as easy as
 
-    output = wrapper.generate(seq_len = 128, prompt = seq[:, :1])
+    wrapper.generate(seq_len = 128, prompt = seq[:, :1])

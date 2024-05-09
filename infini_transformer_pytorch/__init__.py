@@ -7,3 +7,10 @@ from infini_transformer_pytorch.infini_transformer import (
 from infini_transformer_pytorch.wrapper import (
     InfiniTransformerWrapper
 )
+
+__all__ = [
+    InfiniTransformer,
+    InfiniTransformerWrapper,
+    detach_memories_,
+    detach_cached_kv_
+]
