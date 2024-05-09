@@ -100,6 +100,7 @@ $ python train.py
 
 ## Todo
 
+- [ ] `detach_mems_every_num_segments` hyperparameter is too confusing, get rid of it
 - [x] working example with enwik8
 
 ## Citations
