@@ -218,10 +218,6 @@ class CausalAttention(Module):
             k = torch.cat((cached_k, k), dim = -2)
             v = torch.cat((cached_v, v), dim = -2)
 
-        # save original keys and values for cached kv
-
-        orig_k, orig_v = k, v
-
         # similarity
 
         q_scaled = q * self.scale
@@ -258,7 +254,7 @@ class CausalAttention(Module):
         # at inference time, kv cache up to segment length and then compress memories into kv
 
         if not return_new_memories:
-            cached_kv = torch.stack((orig_k, orig_v))
+            cached_kv = torch.stack((k, v))
 
             return out, cached_kv, past_memories
 
