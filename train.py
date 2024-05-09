@@ -21,7 +21,8 @@ LEARNING_RATE = 2e-4
 VALIDATE_EVERY  = 100
 GENERATE_EVERY  = 250
 PRIME_LEN = 100
-SEQ_LEN = 512
+SEQ_LEN = 1024
+SEGMENT_LENGTH = 128
 
 # helpers
 
@@ -44,12 +45,13 @@ model = InfiniTransformer(
     depth = 8,
     dim_head = 64,
     heads = 8,
-    rotary_emb_linear_attn = False
+    use_mem_delta_rule = True,
+    rotary_emb_linear_attn = True
 )
 
 wrapper = InfiniTransformerWrapper(
     model,
-    segment_length = 64,
+    segment_length = SEGMENT_LENGTH,
     detach_mems_every_num_segments = 2
 ).cuda()
 

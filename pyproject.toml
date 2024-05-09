@@ -36,7 +36,10 @@ Homepage = "https://pypi.org/project/infini-transformer-pytorch/"
 Repository = "https://github.com/lucidrains/infini-transformer-pytorch"
 
 [project.optional-dependencies]
-examples = ["tqdm", "numpy"]
+examples = [
+    "tqdm",
+    "numpy"
+]
 
 [build-system]
 requires = ["hatchling"]
