@@ -29,6 +29,9 @@ def divisible_by(num, den):
 def is_empty(t: Tensor):
     return t.numel() == 0
 
+def round_down_multiple(n, mult):
+    return n // mult * mult
+
 # sampling helpers
 
 def log(t, eps = 1e-20):
@@ -118,10 +121,15 @@ class InfiniTransformerWrapper(Module):
 
         for curr_len in tqdm(range(init_len, seq_len)):
 
+            # what is fed into the model is always at the start of the very last segment
+
+            start_ind = round_down_multiple(curr_len - 1, segment_length)
+            model_input = out[:, start_ind:]
+
             # forward the model with cached key / values and past memories
 
             logits, cached_kv, past_memories = self.model(
-                prompt,
+                model_input,
                 cached_kv = cached_kv,
                 past_memories = past_memories,
                 return_new_memories = divisible_by(curr_len, segment_length)

@@ -147,8 +147,7 @@ class CausalAttention(Module):
         # similarity
 
         q_scaled = q * self.scale
-        q_rotated = self.rotary_emb.rotate_queries_or_keys(q_scaled)
-        k_rotated = self.rotary_emb.rotate_queries_or_keys(k)
+        q_rotated, k_rotated = self.rotary_emb.rotate_queries_with_cached_keys(q_scaled, k)
 
         sim = einsum(q_rotated, k_rotated, '... i d, ... j d -> ... i j')
 
@@ -180,7 +179,7 @@ class CausalAttention(Module):
         # maybe apply rotary embeddings to q, k for linear attention to past
 
         if self.rotary_emb_linear_attn:
-            q, k = map(self.rotary_emb.rotate_queries_or_keys, (q, k))
+            q, k = self.rotary_emb.rotate_queries_with_cached_keys(q, k)
 
         # retrieve from past memories
 
@@ -294,12 +293,17 @@ class InfiniTransformer(Module):
 
         x = self.token_emb(x)
 
+        # handle cached key values
+
+        if exists(cached_kv):
+            x = x[:, -1:]
+
         new_cached_kv = []
-        new_memories = []
-
-        # iterators for cached key / values and past compressed memories
-
         cached_kv_iter = iter(default(cached_kv, []))
+
+        # iterator for past compressed memories
+
+        new_memories = []
         past_memories_iter = iter(default(past_memories, []))
 
         # going through layers of infini-transformer

@@ -19,9 +19,9 @@ BATCH_SIZE = 4
 GRADIENT_ACCUMULATE_EVERY = 4
 LEARNING_RATE = 2e-4
 VALIDATE_EVERY  = 100
-GENERATE_EVERY  = 500
+GENERATE_EVERY  = 250
 PRIME_LEN = 100
-SEQ_LEN = 2048
+SEQ_LEN = 4096
 
 # helpers
 
@@ -42,7 +42,9 @@ model = InfiniTransformer(
     num_tokens = 256,
     dim = 512,
     depth = 8,
-    dim_head = 128
+    dim_head = 64,
+    heads = 8,
+    rotary_emb_linear_attn = False
 )
 
 wrapper = InfiniTransformerWrapper(
@@ -75,15 +77,15 @@ class TextSamplerDataset(Dataset):
 train_dataset = TextSamplerDataset(data_train, SEQ_LEN)
 val_dataset   = TextSamplerDataset(data_val, SEQ_LEN)
 train_loader  = cycle(DataLoader(train_dataset, batch_size = BATCH_SIZE))
-val_loader    = cycle(DataLoader(val_dataset, batch_size = BATCH_SIZE))
+val_loader    = cycle(DataLoader(val_dataset, batch_size = 1))
 
 # optimizer
 
-optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+optim = torch.optim.Adam(model.parameters(), lr = LEARNING_RATE)
 
 # training
 
-for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
+for i in tqdm.tqdm(range(NUM_BATCHES), mininterval = 10.):
 
     for __ in range(GRADIENT_ACCUMULATE_EVERY):
         loss = wrapper(
@@ -103,14 +105,19 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
             loss = wrapper(next(val_loader))
             print(f'validation loss: {loss.item()}')
 
-    if i != 0 and i % GENERATE_EVERY == 0:
+    if i % GENERATE_EVERY == 0:
         model.eval()
-        ids = val_dataset[0, :PRIME_LEN]
+
+        ids = next(val_loader)[0][:PRIME_LEN]
         prime = decode_tokens(ids)
         print(f'%s \n\n %s', (prime, '*' * 100))
 
-        sample = model.generate(ids[None, :])
-        sample = sample.flatten(1)
+        sample = wrapper.generate(
+            prompt = ids[None, :],
+            seq_len = SEQ_LEN
+        )
 
-        output_str = decode_tokens(sample[0][PRIME_LEN:])
-        print(output_str)
+        sample = sample.flatten(1)
+        decoded_string = decode_tokens(sample[0])
+        print(decoded_string)
+        print("\n")
