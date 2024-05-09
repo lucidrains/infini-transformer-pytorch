@@ -26,7 +26,7 @@ transformer = InfiniTransformer(
     depth = 8,
     dim_head = 128,  # high head dimension may be part of the reason they got good results (kv has high capacity)
     heads = 8,
-    rotary_emb_linear_attn = True
+    use_mem_delta_rule = True
 )
 
 x = torch.randint(0, 256, (1, 1024))
@@ -55,7 +55,7 @@ model = InfiniTransformer(
     depth = 8,
     dim_head = 128,
     heads = 8,
-    rotary_emb_linear_attn = True
+    use_mem_delta_rule = True
 )
 
 wrapper = InfiniTransformerWrapper(

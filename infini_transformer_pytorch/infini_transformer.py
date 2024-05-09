@@ -73,6 +73,84 @@ class FeedForward(Module):
         x = self.dropout(x)
         return self.proj_out(x)
 
+# fastweight memory
+
+def retrieve_from_kv_memories(t, past_memories: Memories, eps = 1e-10):
+    past_memories_kv, past_memories_norm = past_memories
+
+    numer = einsum(t, past_memories_kv, 'b h n dk, b h dk dv -> b h n dv')
+    denom = einsum(t, past_memories_norm, 'b h n d, b h d -> b h n')
+
+    denom = rearrange(denom, '... -> ... 1')
+    return numer / denom.clamp(min = eps) # eq (3)
+
+class FastweightMemory(Module):
+    def __init__(
+        self,
+        heads: int,
+        head_gate_init_value = 10.,
+        use_mem_delta_rule = False,
+    ):
+        super().__init__()
+        self.use_mem_delta_rule = use_mem_delta_rule
+        self.head_gates = nn.Parameter(torch.ones(heads) * head_gate_init_value)
+
+    def create_new_memories(
+        self,
+        keys: Tensor,
+        values: Tensor,
+        past_memories: Memories
+    ) -> Memories:
+        # Katharopoulos linear attention activation
+
+        keys = F.elu(keys) + 1
+
+        # create the next memories
+
+        if exists(past_memories) and self.use_mem_delta_rule:
+            delta_v = retrieve_from_kv_memories(keys, past_memories)
+
+            # eq (5) - the delta rule
+            values = values - delta_v
+
+        new_memories_kv = einsum(keys, values, '... n dk, ... n dv -> ... dk dv')
+        new_memories_norm = reduce(keys, 'b h n d -> b h d', 'sum')
+
+        if exists(past_memories):
+            past_memories_kv, past_memories_norm = past_memories
+
+            new_memories_kv = new_memories_kv + past_memories_kv          # eq (4)
+            new_memories_norm = new_memories_norm + past_memories_norm    # eq (4)
+
+        return Memories(new_memories_kv, new_memories_norm)
+
+    def retrieve_and_add_to_output(
+        self,
+        out: Tensor,
+        queries: Tensor,
+        past_memories: Memories
+    ) -> Tensor:
+        # the main contribution of the paper
+        # Katharopoulos linear attention to kv memory of shape (batch, heads, dim keys, dim values)
+        # it makes sense the author would try this, as he is ex-shmidhuber lab (linear transformers are fast weights paper)
+
+        queries = F.elu(queries) + 1
+
+        # retrieve from past memories
+
+        if exists(past_memories):
+            mem_out = retrieve_from_kv_memories(queries, past_memories)
+
+            # combine the current timestep output of queries with the outputs querying the past 'compressed' key/value memories
+            # in paper, they use a sigmoid gating scheme with learned gate per head
+
+            gates = rearrange(self.head_gates, 'h -> h 1 1')
+            gates = gates.sigmoid()
+
+            out = out * gates + mem_out * (1. - gates)  # eq (6) - figure 3 shows how heads emergently specialize to look either at the present, past, or a bit of both
+
+        return out
+
 # attention
 
 class CausalAttention(Module):
@@ -84,8 +162,7 @@ class CausalAttention(Module):
         heads = 8,
         dropout = 0.,
         head_gate_init_value = 10.,
-        use_mem_delta_rule = False,
-        rotary_emb_linear_attn = False    # unsure whether to apply rotary embeddings to linear attention, so make it an option
+        use_mem_delta_rule = False
     ):
         super().__init__()
         dim_inner = dim_head * heads
@@ -102,10 +179,11 @@ class CausalAttention(Module):
         self.split_heads = Rearrange('b n (qkv h d) -> qkv b h n d', qkv = 3, h = heads)
         self.merge_heads = Rearrange('b h n d -> b n (h d)')
 
-        self.head_gates = nn.Parameter(torch.ones(heads) * head_gate_init_value)
-
-        self.use_mem_delta_rule = use_mem_delta_rule
-        self.rotary_emb_linear_attn = rotary_emb_linear_attn
+        self.fastweight_mem = FastweightMemory(
+            heads = heads,
+            head_gate_init_value = head_gate_init_value,
+            use_mem_delta_rule = use_mem_delta_rule
+        )
 
     def forward(
         self,
@@ -169,39 +247,7 @@ class CausalAttention(Module):
 
         out = einsum(attn, v, '... i j, ... j d -> ... i d')
 
-        # the main contribution of the paper
-        # Katharopoulos linear attention to kv memory of shape (batch, heads, dim keys, dim values)
-        # it makes sense the author would try this, as he is ex-shmidhuber lab (linear transformers are fast weights paper)
-
-        q = F.elu(q) + 1
-        k = F.elu(k) + 1
-
-        # maybe apply rotary embeddings to q, k for linear attention to past
-
-        if self.rotary_emb_linear_attn:
-            q, k = self.rotary_emb.rotate_queries_with_cached_keys(q, k)
-
-        # retrieve from past memories
-
-        def retrieve_from_kv_memories(t, past_memories: Memories):
-            past_memories_kv, past_memories_norm = past_memories
-
-            numer = einsum(t, past_memories_kv, 'b h n dk, b h dk dv -> b h n dv')
-            denom = einsum(t, past_memories_norm, 'b h n d, b h d -> b h n')
-
-            denom = rearrange(denom, '... -> ... 1')
-            return numer / denom.clamp(min = eps) # eq (3)
-
-        if exists(past_memories):
-            mem_out = retrieve_from_kv_memories(q, past_memories)
-
-            # combine the current timestep output of queries with the outputs querying the past 'compressed' key/value memories
-            # in paper, they use a sigmoid gating scheme with learned gate per head
-
-            gates = rearrange(self.head_gates, 'h -> h 1 1')
-            gates = gates.sigmoid()
-
-            out = out * gates + mem_out * (1. - gates)  # eq (6) - figure 3 shows how heads emergently specialize to look either at the present, past, or a bit of both
+        out = self.fastweight_mem.retrieve_and_add_to_output(out, q, past_memories)
 
         # merge heads and combine
 
@@ -216,24 +262,7 @@ class CausalAttention(Module):
 
             return out, cached_kv, past_memories
 
-        # create the next memories
-
-        if exists(past_memories) and self.use_mem_delta_rule:
-            delta_v = retrieve_from_kv_memories(k, past_memories)
-
-            # eq (5) - the delta rule
-            v = v - delta_v
-
-        new_memories_kv = einsum(k, v, '... n dk, ... n dv -> ... dk dv')
-        new_memories_norm = reduce(k, 'b h n d -> b h d', 'sum')
-
-        if exists(past_memories):
-            past_memories_kv, past_memories_norm = past_memories
-
-            new_memories_kv = new_memories_kv + past_memories_kv          # eq (4)
-            new_memories_norm = new_memories_norm + past_memories_norm    # eq (4)
-
-        new_memories = Memories(new_memories_kv, new_memories_norm)
+        new_memories = self.fastweight_mem.create_new_memories(k, v, past_memories)
 
         return out, None, new_memories
 
@@ -252,7 +281,6 @@ class InfiniTransformer(Module):
         ff_mult = 4,
         ff_dropout = 0.,
         use_mem_delta_rule = False,     # in the paper, the delta rule didn't seem to do that much, but will include for completeness
-        rotary_emb_linear_attn = False
     ):
         super().__init__()
 
@@ -267,7 +295,6 @@ class InfiniTransformer(Module):
                 dim_head = dim_head,
                 heads = heads,
                 use_mem_delta_rule = use_mem_delta_rule,
-                rotary_emb_linear_attn = rotary_emb_linear_attn,
                 dropout = attn_dropout
             )
 

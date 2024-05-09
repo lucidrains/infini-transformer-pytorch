@@ -9,11 +9,11 @@ from infini_transformer_pytorch import (
 def test_readme():
     transformer = InfiniTransformer(
         num_tokens = 256,
-        dim = 512,
-        depth = 8,
+        dim = 64,
+        depth = 1,
         dim_head = 128,
         heads = 8,
-        rotary_emb_linear_attn = True
+        use_mem_delta_rule = True
     )
 
     x = torch.randint(0, 256, (1, 1024))
@@ -27,11 +27,11 @@ def test_generate():
 
     model = InfiniTransformer(
         num_tokens = 256,
-        dim = 512,
+        dim = 64,
         depth = 1,
         dim_head = 128,
         heads = 8,
-        rotary_emb_linear_attn = True
+        use_mem_delta_rule = True
     )
 
     wrapper = InfiniTransformerWrapper(
