@@ -105,18 +105,15 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval = 10.):
             print(f'validation loss: {loss.item()}')
 
     if i % GENERATE_EVERY == 0:
-        model.eval()
-
-        ids = next(val_loader)[0][:PRIME_LEN]
-        prime = decode_tokens(ids)
+        ids = next(val_loader)[:, :PRIME_LEN]
+        prime = decode_tokens(ids.flatten())
         print('%s \n\n %s', (prime, '*' * 100))
 
         sample = wrapper.generate(
-            prompt = ids[None, :],
+            prompt = ids,
             seq_len = SEQ_LEN
         )
 
-        sample = sample.flatten(1)
-        decoded_string = decode_tokens(sample[0])
+        decoded_string = decode_tokens(sample.flatten())
         print(decoded_string)
         print("\n")
