@@ -99,7 +99,7 @@ class FastweightMemory(Module):
         self,
         keys: Tensor,
         values: Tensor,
-        past_memories: Memories
+        past_memories: Memories | None = None
     ) -> Memories:
         # Katharopoulos linear attention activation
 
@@ -128,8 +128,12 @@ class FastweightMemory(Module):
         self,
         out: Tensor,
         queries: Tensor,
-        past_memories: Memories
+        past_memories: Memories | None = None
     ) -> Tensor:
+
+        if not exists(past_memories):
+            return out
+
         # the main contribution of the paper
         # Katharopoulos linear attention to kv memory of shape (batch, heads, dim keys, dim values)
         # it makes sense the author would try this, as he is ex-shmidhuber lab (linear transformers are fast weights paper)
@@ -138,16 +142,15 @@ class FastweightMemory(Module):
 
         # retrieve from past memories
 
-        if exists(past_memories):
-            mem_out = retrieve_from_kv_memories(queries, past_memories)
+        mem_out = retrieve_from_kv_memories(queries, past_memories)
 
-            # combine the current timestep output of queries with the outputs querying the past 'compressed' key/value memories
-            # in paper, they use a sigmoid gating scheme with learned gate per head
+        # combine the current timestep output of queries with the outputs querying the past 'compressed' key/value memories
+        # in paper, they use a sigmoid gating scheme with learned gate per head
 
-            gates = rearrange(self.head_gates, 'h -> h 1 1')
-            gates = gates.sigmoid()
+        gates = rearrange(self.head_gates, 'h -> h 1 1')
+        gates = gates.sigmoid()
 
-            out = out * gates + mem_out * (1. - gates)  # eq (6) - figure 3 shows how heads emergently specialize to look either at the present, past, or a bit of both
+        out = out * gates + mem_out * (1. - gates)  # eq (6) - figure 3 shows how heads emergently specialize to look either at the present, past, or a bit of both
 
         return out
 
