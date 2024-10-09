@@ -63,4 +63,4 @@ ignore-init-module-imports = true
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["infini-transformer-pytorch"]
+packages = ["infini_transformer_pytorch"]
