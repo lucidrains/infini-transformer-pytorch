@@ -109,8 +109,6 @@ class FastweightMemory(Module):
 
         # create the next memories
 
-        diff_values = values
-
         if exists(past_memories) and self.use_mem_delta_rule:
             delta_v = retrieve_from_kv_memories(keys, past_memories)
 
@@ -121,6 +119,12 @@ class FastweightMemory(Module):
                 values = values.lerp(delta_v, weights)
 
             diff_values = values - delta_v
+        else:
+
+            if exists(weights):
+                values = values * (1. - weights)
+
+            diff_values = values
 
         new_memories_kv = einsum(keys, diff_values, '... n dk, ... n dv -> ... dk dv')
         new_memories_norm = reduce(keys, 'b h n d -> b h d', 'sum')
