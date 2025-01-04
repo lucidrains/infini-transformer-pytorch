@@ -114,3 +114,14 @@ $ python train.py
     url     = {https://api.semanticscholar.org/CorpusID:269033427}
 }
 ```
+
+```bibtex
+@article{Yang2024ParallelizingLT,
+    title   = {Parallelizing Linear Transformers with the Delta Rule over Sequence Length},
+    author  = {Songlin Yang and Bailin Wang and Yu Zhang and Yikang Shen and Yoon Kim},
+    journal = {ArXiv},
+    year    = {2024},
+    volume  = {abs/2406.06484},
+    url     = {https://api.semanticscholar.org/CorpusID:270371554}
+}
+```

@@ -99,21 +99,30 @@ class FastweightMemory(Module):
         self,
         keys: Tensor,
         values: Tensor,
-        past_memories: Memories | None = None
+        past_memories: Memories | None = None,
+        weights: Tensor | None = None
     ) -> Memories:
+
         # Katharopoulos linear attention activation
 
         keys = F.elu(keys) + 1
 
         # create the next memories
 
+        diff_values = values
+
         if exists(past_memories) and self.use_mem_delta_rule:
             delta_v = retrieve_from_kv_memories(keys, past_memories)
 
             # eq (5) - the delta rule
-            values = values - delta_v
 
-        new_memories_kv = einsum(keys, values, '... n dk, ... n dv -> ... dk dv')
+            if exists(weights):
+                # `weights` correspond to beta from deltanet, controlling how much of a given value is stored to fastweight memories
+                values = values.lerp(delta_v, weights)
+
+            diff_values = values - delta_v
+
+        new_memories_kv = einsum(keys, diff_values, '... n dk, ... n dv -> ... dk dv')
         new_memories_norm = reduce(keys, 'b h n d -> b h d', 'sum')
 
         if exists(past_memories):
@@ -165,7 +174,8 @@ class CausalAttention(Module):
         heads = 8,
         dropout = 0.,
         head_gate_init_value = 10.,
-        use_mem_delta_rule = False
+        use_mem_delta_rule = False,
+        learned_delta_update = False
     ):
         super().__init__()
         dim_inner = dim_head * heads
@@ -182,10 +192,18 @@ class CausalAttention(Module):
         self.split_heads = Rearrange('b n (qkv h d) -> qkv b h n d', qkv = 3, h = heads)
         self.merge_heads = Rearrange('b h n d -> b n (h d)')
 
+        # this corresponds to the learned beta in Deltanet from Yang et al. https://arxiv.org/abs/2406.06484
+
+        self.to_learned_delta_update_weights = nn.Sequential(
+            nn.Linear(dim, heads, bias = False),
+            Rearrange('b n h -> b h n 1'),
+            nn.Sigmoid()
+        ) if learned_delta_update else None
+
         self.fastweight_mem = FastweightMemory(
             heads = heads,
             head_gate_init_value = head_gate_init_value,
-            use_mem_delta_rule = use_mem_delta_rule
+            use_mem_delta_rule = use_mem_delta_rule,
         )
 
     def forward(
@@ -211,8 +229,8 @@ class CausalAttention(Module):
 
         x = self.norm(x)
 
-        x = self.to_qkv(x)
-        q, k, v = self.split_heads(x)
+        qkv = self.to_qkv(x)
+        q, k, v = self.split_heads(qkv)
 
         # handle cached key / values
 
@@ -261,7 +279,15 @@ class CausalAttention(Module):
 
             return out, cached_kv, past_memories
 
-        new_memories = self.fastweight_mem.create_new_memories(k, v, past_memories)
+        # having the network learn the strength at which to apply the delta update rule
+        # learnt per token / head
+
+        delta_update_weights = None
+
+        if exists(self.to_learned_delta_update_weights):
+            delta_update_weights = self.to_learned_delta_update_weights(x)
+
+        new_memories = self.fastweight_mem.create_new_memories(k, v, past_memories, delta_update_weights)
 
         return out, None, new_memories
 
@@ -279,7 +305,8 @@ class InfiniTransformer(Module):
         attn_dropout = 0.,
         ff_mult = 4,
         ff_dropout = 0.,
-        use_mem_delta_rule = False,     # in the paper, the delta rule didn't seem to do that much, but will include for completeness
+        use_mem_delta_rule = False,      # in the paper, the delta rule didn't seem to do that much, but will include for completeness
+        learned_delta_update = False,    # whether to use learned delta rule
     ):
         super().__init__()
 
@@ -294,6 +321,7 @@ class InfiniTransformer(Module):
                 dim_head = dim_head,
                 heads = heads,
                 use_mem_delta_rule = use_mem_delta_rule,
+                learned_delta_update = learned_delta_update,
                 dropout = attn_dropout
             )
 

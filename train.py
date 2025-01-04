@@ -43,7 +43,8 @@ model = InfiniTransformer(
     depth = 8,
     dim_head = 64,
     heads = 8,
-    use_mem_delta_rule = True
+    use_mem_delta_rule = True,
+    learned_delta_update = True
 )
 
 wrapper = InfiniTransformerWrapper(
